@@ -7,7 +7,7 @@
 #include "inc/hello1.h"
 
 //static void print_hello(void);
-EXPORT_SYMBOL(print_hello);
+//EXPORT_SYMBOL(print_hello);
 
 static void print_hello(void)
 {
