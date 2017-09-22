@@ -10,9 +10,16 @@
 
 #include <linux/rbtree_augmented.h>
 
-MODULE_AUTHOR("Roman");
+MODULE_AUTHOR("Roman Kolisnyk <KolisnykRoman@gmail.com>");
 MODULE_DESCRIPTION("Test (rbtree intervals) in Linux Kernel Training");
 MODULE_LICENSE("GPL");
+
+/*---------------------------
+interval_tree_first_match() - for search in tree
+interval_tree_remove2() - for remove intervals from tree
+interval_tree_insert2() - for insertion interva in tree
+flush_tree() - for clean tree
+------------------------------*/
 
 /* Define rbtree root node globally */
 static struct rb_root root = RB_ROOT;
@@ -29,7 +36,7 @@ static void print_tree_intervals(struct rb_root *root)
 	struct interval_tree_node *val, *tmp;
 
 	rbtree_postorder_for_each_entry_safe(val, tmp, root, rb) {
-		pr_info("[ %i ... %i ] : %i\n", val->start, val->last, val->__subtree_last);
+		pr_info("[ %i ... %i ]\n", val->start, val->last);
 	}
 }
 
@@ -72,6 +79,7 @@ struct interval_tree_node *interval_tree_first_match(struct rb_root *root, u32 s
 		return NULL;	/* No match */
 	}
 }
+EXPORT_SYMBOL(interval_tree_first_match);
 
 //Insertion/removal are defined using the following augmented callbacks::
 
@@ -156,10 +164,42 @@ void interval_tree_insert(struct interval_tree_node *node, struct rb_root *root)
 	rb_insert_augmented(&node->rb, root, &augment_callbacks);
 }
 
+/* need rewrite or write new */
 void interval_tree_remove(struct interval_tree_node *node, struct rb_root *root)
 {
 	rb_erase_augmented(&node->rb, root, &augment_callbacks);
 }
+
+/*  For delete interval from tree*/
+void interval_tree_remove2(struct interval_tree_node *node, struct rb_root *root)
+{
+	struct interval_tree_node *tnode = NULL;
+	tnode = interval_tree_first_match(root, node->start, node->last);
+
+	if (tnode)
+		rb_erase_augmented(&node->rb, root, &augment_callbacks);
+}
+EXPORT_SYMBOL(interval_tree_remove2);
+
+/* Insertion with merge intervals */
+void interval_tree_insert2(struct interval_tree_node *node, struct rb_root *root)
+{
+	struct interval_tree_node *tnode = NULL;
+
+	tnode = interval_tree_first_match(root, node->start-1, node->last+1);
+	if (tnode) {
+		interval_tree_remove(tnode, root);
+		if (node->start < tnode->start)
+			tnode->start = node->start;
+		if (node->last > tnode->last) {
+			tnode->last = node->last;
+//			tnode->__subtree_last = tnode->last; //   ???? maybee not need
+		}
+		interval_tree_insert2(tnode, root);
+	} else
+		interval_tree_insert(node, root);
+}
+EXPORT_SYMBOL(interval_tree_insert2);
 
 void flush_tree(struct rb_root *root)
 {
@@ -171,13 +211,15 @@ void flush_tree(struct rb_root *root)
 
 	*root = RB_ROOT;
 }
-
+EXPORT_SYMBOL(flush_tree);
 
 static int __init test7_init(void)
 {
 	struct interval_tree_node *sn;
 	struct interval_tree_node *v1, *v2, *v3, *v4, *v5, *v6, *v7;
+	struct interval_tree_node *v8;
 
+/* init values for insertion to tree */
 	v1 = kmalloc(sizeof(struct interval_tree_node), GFP_KERNEL);
 	v2 = kmalloc(sizeof(struct interval_tree_node), GFP_KERNEL);
 	v3 = kmalloc(sizeof(struct interval_tree_node), GFP_KERNEL);
@@ -185,50 +227,76 @@ static int __init test7_init(void)
 	v5 = kmalloc(sizeof(struct interval_tree_node), GFP_KERNEL);
 	v6 = kmalloc(sizeof(struct interval_tree_node), GFP_KERNEL);
 	v7 = kmalloc(sizeof(struct interval_tree_node), GFP_KERNEL);
+	v8 = kmalloc(sizeof(struct interval_tree_node), GFP_KERNEL);
 	v1->start = 2;
 	v1->last = 5;
-	v2->start = 12;
-	v2->last = 15;
-	v3->start = 22;
-	v3->last = 25;
-	v4->start = 7;
-	v4->last = 8;
-	v5->start = 16;
-	v5->last = 30;
-	v6->start = 17;
-	v6->last = 19;
-	v7->start = 2;
-	v7->last = 9;
-	interval_tree_insert(v1, &root);
-	interval_tree_insert(v2, &root);
-	interval_tree_insert(v3, &root);
-	interval_tree_insert(v4, &root);
-	interval_tree_insert(v5, &root);
-	interval_tree_insert(v6, &root);
-	interval_tree_insert(v7, &root);
+	v2->start = 4;
+	v2->last = 7;
+	v3->start = 10;
+	v3->last = 20;
+	v4->start = 22;
+	v4->last = 30;
+	v5->start = 40;
+	v5->last = 50;
+	v6->start = 8;
+	v6->last = 9;
+	v7->start = 51;
+	v7->last = 55;
+	v8->start = 60;
+	v8->last = 65;
+
+/* insert values to tree */
+	interval_tree_insert2(v1, &root);
+	interval_tree_insert2(v2, &root);
+	interval_tree_insert2(v3, &root);
+	interval_tree_insert2(v4, &root);
+	interval_tree_insert2(v5, &root);
+	interval_tree_insert2(v6, &root);
+	interval_tree_insert2(v7, &root);
 	pr_info("---------------------");
 	print_tree_intervals(&root);
-	sn = interval_tree_first_match(&root, v2->start, v2->last);
-	if (sn)
-		pr_info("---> [ %i ... %i ] : %i\n", sn->start, sn->last, sn->__subtree_last);
 
-	sn = interval_tree_first_match(&root, 21, 21);
+/* try search some interva in tree */
+	sn = interval_tree_first_match(&root, 4, 9);
 	if (sn)
-		pr_info("---> [ %i ... %i ] : %i\n", sn->start, sn->last, sn->__subtree_last);
-	pr_info("----- del 1 element v2 ------");
-	interval_tree_remove(v2, &root);
+		pr_info("---> [ %i ... %i ]\n", sn->start, sn->last);
+//	pr_info("----- del 1 element v2 ------");
+/* try remove some intervals from tree, with not exist in tree */
+	interval_tree_remove2(v8, &root);
+
+	interval_tree_insert2(v8, &root);
+
 	print_tree_intervals(&root);
 	return 0;
 }
 
 static void __exit test7_exit(void)
 {
-	pr_info("Exiting from module test7\n");
+	struct interval_tree_node *v1, *sn;
 
-	pr_info("flush tree\n");
+	pr_info("Exiting from module rbi_tree\n");
+
+/* clean tree */
 	flush_tree(&root);
 
-	pr_info("Exit from module test7\n");
+	v1 = kmalloc(sizeof(struct interval_tree_node), GFP_KERNEL);
+
+	v1->start = 2;
+	v1->last = 5;
+
+/* search in enpty tree */
+	sn = interval_tree_first_match(&root, v1->start, v1->last);
+	BUG_ON(sn);
+
+/* insertion in tree */
+	interval_tree_insert2(v1, &root);
+
+	sn = interval_tree_first_match(&root, v1->start, v1->last);
+	BUG_ON(!sn);
+
+/* clean tree again */
+	flush_tree(&root);
+	pr_info("Exit from module rbi_tree\n");
 }
 
 module_init(test7_init);
