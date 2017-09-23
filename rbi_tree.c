@@ -15,9 +15,10 @@ MODULE_DESCRIPTION("Test (rbtree intervals) in Linux Kernel Training");
 MODULE_LICENSE("GPL");
 
 /*---------------------------
-interval_tree_first_match() - for search in tree
-interval_tree_remove2() - for remove intervals from tree
-interval_tree_insert2() - for insertion interva in tree
+interval_tree_first_match() - for search in tree by interval
+interval_tree_remove2() - for remove interval from tree
+interval_tree_insert2() - for insertion interval in tree
+interval_tree_first_match_num() - for search in interval tree by number
 flush_tree() - for clean tree
 ------------------------------*/
 
@@ -80,6 +81,47 @@ struct interval_tree_node *interval_tree_first_match(struct rb_root *root, u32 s
 	}
 }
 EXPORT_SYMBOL(interval_tree_first_match);
+
+struct interval_tree_node *interval_tree_first_match_num(struct rb_root *root, u32 num)
+{
+	struct interval_tree_node *node;
+
+	if (!root->rb_node)
+		return NULL;
+	node = rb_entry(root->rb_node, struct interval_tree_node, rb);
+
+	while (true) {
+		if (node->rb.rb_left) {
+			struct interval_tree_node *left =
+				rb_entry(node->rb.rb_left,
+					 struct interval_tree_node, rb);
+			if (left->__subtree_last >= num) {
+				/*
+				 * Some nodes in left subtree satisfy Cond2.
+				 * Iterate to find the leftmost such node N.
+				 * If it also satisfies Cond1, that's the match
+				 * we are looking for. Otherwise, there is no
+				 * matching interval as nodes to the right of N
+				 * can't satisfy Cond1 either.
+				 */
+				node = left;
+				continue;
+			}
+		}
+		if (node->start <= num) {		/* Cond1 */
+			if (node->last >= num)	/* Cond2 */
+				return node;	/* node is leftmost match */
+			if (node->rb.rb_right) {
+				node = rb_entry(node->rb.rb_right,
+					struct interval_tree_node, rb);
+				if (node->__subtree_last >= num)
+					continue;
+			}
+		}
+		return NULL;	/* No match */
+	}
+}
+EXPORT_SYMBOL(interval_tree_first_match_num);
 
 //Insertion/removal are defined using the following augmented callbacks::
 
@@ -174,6 +216,7 @@ void interval_tree_remove(struct interval_tree_node *node, struct rb_root *root)
 void interval_tree_remove2(struct interval_tree_node *node, struct rb_root *root)
 {
 	struct interval_tree_node *tnode = NULL;
+
 	tnode = interval_tree_first_match(root, node->start, node->last);
 
 	if (tnode)
@@ -191,10 +234,8 @@ void interval_tree_insert2(struct interval_tree_node *node, struct rb_root *root
 		interval_tree_remove(tnode, root);
 		if (node->start < tnode->start)
 			tnode->start = node->start;
-		if (node->last > tnode->last) {
+		if (node->last > tnode->last)
 			tnode->last = node->last;
-//			tnode->__subtree_last = tnode->last; //   ???? maybee not need
-		}
 		interval_tree_insert2(tnode, root);
 	} else
 		interval_tree_insert(node, root);
@@ -260,7 +301,12 @@ static int __init test7_init(void)
 	sn = interval_tree_first_match(&root, 4, 9);
 	if (sn)
 		pr_info("---> [ %i ... %i ]\n", sn->start, sn->last);
-//	pr_info("----- del 1 element v2 ------");
+
+/* try search some value in tree */
+	sn = interval_tree_first_match_num(&root, 4);
+	if (sn)
+		pr_info("-- num = %i -> [ %i ... %i ]\n", 4, sn->start, sn->last);
+
 /* try remove some intervals from tree, with not exist in tree */
 	interval_tree_remove2(v8, &root);
 
