@@ -49,7 +49,7 @@ static void my_wq_function( struct work_struct *work)
 	my_work_t *my_work = (my_work_t *)work;
 
 //	pr_info( "my_hrtimer_callback called (%lld).\n", ktime_to_ms(timer->base->get_time()));
-	pr_info( "my_work.x %d called (%lld)\n", my_work->x, ktime_to_ms(timer->base->get_time()) );
+	pr_info( "my_work.x %d called (%lld)\n", my_work->x, ktime_to_ms(hr_timer.base->get_time()) );
 
 	kfree( (void *)work );
 
