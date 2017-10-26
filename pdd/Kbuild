@@ -1,0 +1,4 @@
+
+# kbuild part of makefile
+obj-m := platform_test_dts2.o
+
