@@ -73,25 +73,7 @@ int main(int argc, char **argv)
 	if (device >= MAX_DEVICES)
 		return usage(argv);
 
-/*
-	ret = stat(argv[2], &st);
-	if (ret) {
-		printf("ERROR: Can't find (%s)\n", argv[2]);
-		return -1;
-	}
 
-*/
-
-
-
-/*
-	len = fread(buf, 1U, st.st_size, f);
-	fclose(f);
-	if (len != st.st_size) {
-		printf("File read Error (%s)\n", argv[2]);
-		return -1;
-	}
-*/
 	int fd = open("/dev/mem",O_RDWR|O_SYNC);
 	if(fd < 0)
 	{
@@ -114,21 +96,18 @@ int main(int argc, char **argv)
 	count_addr++;
 
 //	*flag_addr = 0;
-
-    count = 0;
-	while (!count) {
-
-        if (*flag_addr & PLAT_IO_DATA_WR) {
-            count = *count_addr;
-
-           	f = fopen(argv[2], "wb");
+	f = fopen(argv[2], "wb");
             if (!f) {
                 printf("fopen error (%s)\n", argv[2]);
                 return -1;
             }
 
+	int reads = 10;
+    count = 0;
+	while (reads) {
 
-            printf("count = %d\n", count);
+        if (*flag_addr & PLAT_IO_DATA_WR) {
+            count = *count_addr;
 
             buf = (uint8_t *) malloc(count);
             if (!buf) {
@@ -137,18 +116,21 @@ int main(int argc, char **argv)
             }
             memcpy(buf, (void *)mem_addr, count);
 
-
             len = fwrite(buf, 1U, count, f);
-            fclose(f);
+
             if (len != count) {
                 printf("File write Error (%s)\n", argv[2]);
                 return -1;
             }
-            printf("buf = %s", buf);
             *count_addr = 0x0;
             *flag_addr = 0x0;
+			printf("read :%s\n", (char *)buf);
        }
+		else sleep(1);
+
+		reads--;
     }
 
+	fclose(f);
 	return 0;
 }

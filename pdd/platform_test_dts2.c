@@ -34,6 +34,8 @@ struct plat_dummy_device {
 	void __iomem *regs;
 	struct delayed_work     dwork;
 	struct workqueue_struct *data_read_wq;
+	struct workqueue_struct *data_write_wq;
+	struct delayed_work     dwork2;
 	u64 js_pool_time;
 	u8 msg[64]; /* for message witch been writen to dev */
 };
@@ -64,7 +66,7 @@ static void plat_dummy_work(struct work_struct *work)
 	u32 i, size, status;
 	u8 data;
 
-	pr_info("++%s(%d)\n", __func__, jiffies_to_msecs(jiffies));
+	pr_info("++%s(%u)\n", __func__, jiffies_to_msecs(jiffies));
 
 	my_device = container_of(work, struct plat_dummy_device, dwork.work);
 	status = plat_dummy_reg_read32(my_device, PLAT_IO_FLAG_REG);
@@ -90,6 +92,44 @@ static void plat_dummy_work(struct work_struct *work)
 }
 
 /* function for write message in dev */
+static void plat_dummy_work_wr2(struct work_struct *work)
+{
+	struct plat_dummy_device *my_device;
+	u32 i, size, status;
+	u8 data;
+
+	pr_info("--%s(%x)\n", __func__, jiffies_to_msecs(jiffies));
+	my_device = container_of(work, struct plat_dummy_device, dwork2.work);
+
+	size = 0;
+	status = plat_dummy_reg_read32(my_device, PLAT_IO_FLAG_REG);
+
+	if (~(status & PLAT_IO_DATA_READY)) {
+
+		size = sprintf((char *)my_device->msg, "%u ms\n", jiffies_to_msecs(jiffies));
+		pr_info("%s jiffies = %s\n", __func__, (char *)my_device->msg);
+
+		if (size < 0)
+			pr_info("Some error in %s", __func__);
+
+		for (i = 0; i < size; i++) {
+			data = my_device->msg[i];
+
+			plat_dummy_mem_write8(my_device, i, data);
+			//pr_info("%s: mem[%d] = 0x%x ('%c')\n", __func__,  i, data, data);
+		}
+		/* for complite all writes */
+		wmb();
+
+		status = PLAT_IO_DATA_WR;
+		plat_dummy_reg_write32(my_device, PLAT_IO_SIZE_REG, size);
+		plat_dummy_reg_write32(my_device, PLAT_IO_FLAG_REG, status);
+
+	}
+
+	queue_delayed_work(my_device->data_write_wq, &my_device->dwork2, my_device->js_pool_time);
+}
+/*
 static void plat_dummy_work_wr(struct plat_dummy_device *my_device)
 {
 	u32 i, size, status;
@@ -112,7 +152,7 @@ static void plat_dummy_work_wr(struct plat_dummy_device *my_device)
 			plat_dummy_mem_write8(my_device, i, data);
 			pr_info("%s: mem[%d] = 0x%x ('%c')\n", __func__,  i, data, data);
 		}
-		/* for complite all writes */
+
 		wmb();
 
 		status = PLAT_IO_DATA_WR;
@@ -121,7 +161,7 @@ static void plat_dummy_work_wr(struct plat_dummy_device *my_device)
 	}
 	pr_info("%s exit\n", __func__);
 }
-
+*/
 static const struct of_device_id plat_dummy_of_match[] = {
 	{
 		.compatible = "test,plat_dummy",
@@ -168,7 +208,7 @@ static int plat_dummy_probe(struct platform_device *pdev)
 	pr_info("Registers mapped to %p\n", my_device->mem);
 
 
-	plat_dummy_work_wr(my_device);
+//	plat_dummy_work_wr(my_device);
 
 	/*Init data read WQ*/
 	my_device->data_read_wq = alloc_workqueue("plat_dummy_read",
@@ -177,9 +217,20 @@ static int plat_dummy_probe(struct platform_device *pdev)
 	if (!my_device->data_read_wq)
 		return -ENOMEM;
 
+	my_device->data_write_wq = alloc_workqueue("plat_dummy_write",
+					WQ_UNBOUND, MAX_DUMMY_PLAT_THREADS);
+
+	if (!my_device->data_write_wq)
+		return -ENOMEM;
+
 	INIT_DELAYED_WORK(&my_device->dwork, plat_dummy_work);
+	INIT_DELAYED_WORK(&my_device->dwork2, plat_dummy_work_wr2);
+
 	my_device->js_pool_time = msecs_to_jiffies(DEVICE_POOLING_TIME_MS);
+
 	queue_delayed_work(my_device->data_read_wq, &my_device->dwork, 0);
+	queue_delayed_work(my_device->data_write_wq, &my_device->dwork2, 0);
+
 	return PTR_ERR_OR_ZERO(my_device->mem);
 }
 
@@ -188,6 +239,12 @@ static int plat_dummy_remove(struct platform_device *pdev)
 	struct plat_dummy_device *my_device = platform_get_drvdata(pdev);
 
 	pr_info("++%s\n", __func__);
+
+	if (my_device->data_write_wq) {
+	/* Destroy work Queue */
+		cancel_delayed_work_sync(&my_device->dwork2);
+		destroy_workqueue(my_device->data_write_wq);
+	}
 
 	if (my_device->data_read_wq) {
 	/* Destroy work Queue */
