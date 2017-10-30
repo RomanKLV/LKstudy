@@ -11,18 +11,22 @@
 
 
 
-#define MEM_BASE1 0x20000000
+#define MEM_BASE1  0x20000000
+#define MEM_BASE11 0x20002000
 #define REG_BASE1  0x20001000
 
-#define MEM_BASE2 0x20010000
-#define REG_BASE2 0x20011000
+#define MEM_BASE2  0x20005000
+#define MEM_BASE22 0x20007000
+#define REG_BASE2  0x20006000
 
 #define MEM_SIZE	0x1000
-#define REG_SIZE	8
+#define REG_SIZE	16
 
 #define PLAT_IO_FLAG_REG		(0) /*Offset of flag register*/
 #define PLAT_IO_SIZE_REG		(4) /*Offset of flag register*/
+#define PLAT_IO_SIZE2_REG		(8) /*Offset of flag register*/
 #define PLAT_IO_DATA_READY	(1) /*IO data ready flag */
+#define PLAT_IO_DATA_WR (2)
 
 #define MAX_DEVICES	2
 
@@ -31,23 +35,30 @@ extern int errno;
 struct my_device {
 	uint32_t mem_base;
 	uint32_t mem_size;
+	uint32_t mem_base2;
+	uint32_t mem_size2;
 	uint32_t reg_base;
-	uint32_t reg_size;	
+	uint32_t reg_size;
 };
 
 static struct my_device my_devices[MAX_DEVICES] = {{
 	.mem_base = MEM_BASE1,
 	.mem_size = MEM_SIZE,
+	.mem_base2 = MEM_BASE11,
+	.mem_size2 = MEM_SIZE,
 	.reg_base = REG_BASE1,
 	.reg_size = REG_SIZE,
 	},
 	{
 	.mem_base = MEM_BASE2,
 	.mem_size = MEM_SIZE,
+	.mem_base = MEM_BASE22,
+	.mem_size = MEM_SIZE,
 	.reg_base = REG_BASE2,
 	.reg_size = REG_SIZE,
 	},
 };
+
 int usage(char **argv)
 {
 	printf("Program sends file to the specific device\n");
@@ -116,7 +127,7 @@ int main(int argc, char **argv)
 	count_addr = reg_addr;
 	count_addr++;
 
-	*flag_addr = 0;
+	*flag_addr = (*flag_addr & ~PLAT_IO_DATA_READY);
 	while (len) {
 		while (*flag_addr & PLAT_IO_DATA_READY) {
 			usleep(50000);
