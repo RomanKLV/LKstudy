@@ -92,7 +92,7 @@ static void plat_dummy_work(struct work_struct *work)
 
 /* Write to dev */
 	if (~(status & PLAT_IO_DATA_READY)) {
-		size = sprintf((char *)my_device->msg, "%u ms\n", jiffies_to_msecs(jiffies));
+		size = sprintf((char *)my_device->msg, "%u\n", jiffies_to_msecs(jiffies));
 		pr_info("%s jiffies = %s\n", __func__, (char *)my_device->msg);
 
 		if (size < 0)

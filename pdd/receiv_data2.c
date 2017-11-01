@@ -9,15 +9,13 @@
 #include <stdint.h>
 #include <string.h>
 
-
-
 #define MEM_BASE1  0x20000000
-#define MEM_BASE11 0x20002000
+#define MEM_BASE11 0x20004000
 #define REG_BASE1  0x20001000
 
-#define MEM_BASE2  0x20005000
-#define MEM_BASE22 0x20007000
-#define REG_BASE2  0x20006000
+#define MEM_BASE2  0x20010000
+#define MEM_BASE22 0x20014000
+#define REG_BASE2  0x20011000
 
 #define MEM_SIZE	0x1000
 #define REG_SIZE	16
@@ -97,21 +95,19 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
+	printf("mem_addr   = %llx\n", mem_addr);
+
 	reg_addr = (unsigned int *) mmap(0, my_devices[device].reg_size,
 			PROT_WRITE | PROT_READ, MAP_SHARED, fd, my_devices[device].reg_base);
 
 	flag_addr = reg_addr;
-	printf("flag_addr =%llx\n", flag_addr);
-
+	printf("flag_addr  = %llx\n", flag_addr);
 	count_addr = reg_addr;
-//	printf("count_addr =%d\n", count_addr);
 	count_addr++;
-	printf("count_addr =%llx\n", count_addr);
-
+	printf("count_addr = %llx\n", count_addr);
 	count2_addr = count_addr;
-//	printf("count2_addr =%x\n", count2_addr);
 	count2_addr++;
-	printf("count2_addr =%llx\n", count2_addr);
+	printf("count2_addr = %llx\n", count2_addr);
 
 	f = fopen(argv[2], "wb");
             if (!f) {
@@ -140,7 +136,7 @@ int main(int argc, char **argv)
                 return -1;
             }
             *count2_addr = 0x0;
-            *flag_addr = 0x0;
+            *flag_addr = (*flag_addr & ~PLAT_IO_DATA_WR);//0x0;
 			printf("read :%s\n", (char *)buf);
 			reads--;
        }
