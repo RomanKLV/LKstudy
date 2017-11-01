@@ -52,8 +52,8 @@ static struct my_device my_devices[MAX_DEVICES] = {{
 	{
 	.mem_base = MEM_BASE2,
 	.mem_size = MEM_SIZE,
-	.mem_base = MEM_BASE22,
-	.mem_size = MEM_SIZE,
+	.mem_base2 = MEM_BASE22,
+	.mem_size2 = MEM_SIZE,
 	.reg_base = REG_BASE2,
 	.reg_size = REG_SIZE,
 	},
@@ -69,7 +69,7 @@ int usage(char **argv)
 int main(int argc, char **argv)
 {
 	volatile unsigned int *reg_addr = NULL, *count_addr, *flag_addr;
-	volatile unsigned char *mem_addr = NULL;
+	volatile unsigned char *mem_addr = NULL, *mem_addr2 = NULL;
 	unsigned int i, device, ret, len, count;
 	struct stat st;
 	uint8_t *buf;
@@ -115,6 +115,14 @@ int main(int argc, char **argv)
 	mem_addr = (unsigned char *) mmap(0, my_devices[device].mem_size,
 				PROT_WRITE, MAP_SHARED, fd, my_devices[device].mem_base);
 	if(mem_addr == NULL)
+	{
+		printf("Can't mmap\n");
+		return -1;
+	}
+
+	mem_addr2 = (unsigned char *) mmap(0, my_devices[device].mem_size2,
+				PROT_WRITE, MAP_SHARED, fd, my_devices[device].mem_base2);
+	if(mem_addr2 == NULL)
 	{
 		printf("Can't mmap\n");
 		return -1;
